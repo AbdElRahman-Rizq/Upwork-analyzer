@@ -1,9 +1,15 @@
 const button = document.getElementById('analyzeBtn');
 const statusEl = document.getElementById('status');
+const progressBar = document.getElementById('progressBar');
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.style.color = isError ? '#c62828' : '#0f9d58';
+}
+
+function setProgress(percent) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  progressBar.style.width = `${clamped}%`;
 }
 
 async function sendJobsToBackend(jobs) {
@@ -25,6 +31,7 @@ async function sendJobsToBackend(jobs) {
 async function handleAnalyzeClick() {
   button.disabled = true;
   setStatus('Collecting jobs...');
+  setProgress(0);
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -42,9 +49,22 @@ async function handleAnalyzeClick() {
       throw new Error('No jobs were found on this page.');
     }
 
-    setStatus('Sending to analyzer...');
-    const backendResponse = await sendJobsToBackend(scrapeResult.jobs);
-    setStatus(`Done! Processed ${backendResponse.detail?.length ?? 0} jobs.`);
+    const total = scrapeResult.jobs.length;
+    const aggregatedResults = [];
+
+    for (let i = 0; i < total; i++) {
+      const job = scrapeResult.jobs[i];
+      setStatus(`Analyzing job ${i + 1}/${total}...`);
+
+      const backendResponse = await sendJobsToBackend([job]);
+      const processed = backendResponse?.detail ?? [];
+      aggregatedResults.push(...processed);
+
+      const progress = Math.round(((i + 1) / total) * 100);
+      setProgress(progress);
+    }
+
+    setStatus(`Done! Processed ${aggregatedResults.length} job${aggregatedResults.length === 1 ? '' : 's'}.`);
   } catch (error) {
     setStatus(error.message || 'Unexpected error', true);
   } finally {
