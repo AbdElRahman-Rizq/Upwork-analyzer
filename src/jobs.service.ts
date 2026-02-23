@@ -6,7 +6,8 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class JobsService {
   private genAI: GoogleGenerativeAI;
-  private docId: string;
+  private sheetId: string;
+  private sheetRange: string;
   private readonly logger = new Logger(JobsService.name);
 
   private readonly MAX_COMPLEXITY = 4;
@@ -22,10 +23,12 @@ export class JobsService {
 
     this.genAI = new GoogleGenerativeAI(apiKey);
 
-    this.docId = this.configService.get<string>('GOOGLE_DOC_ID') || '';
-    if (!this.docId) {
-      this.logger.warn('GOOGLE_DOC_ID is missing; Google Docs updates will fail until it is provided.');
+    this.sheetId = this.configService.get<string>('GOOGLE_SHEET_ID') || '';
+    if (!this.sheetId) {
+      this.logger.warn('GOOGLE_SHEET_ID is missing; Google Sheets updates will fail until it is provided.');
     }
+
+    this.sheetRange = this.configService.get<string>('GOOGLE_SHEET_RANGE') || 'Sheet1!A:C';
   }
 
   private async sleep(ms: number) {
@@ -215,25 +218,31 @@ Rules:
     }
   }
 
-  async appendToGoogleDoc(jobLink: string, analysis: string) {
+  async appendToGoogleSheet(jobLink: string, analysis: Record<string, unknown>) {
     const auth = new google.auth.GoogleAuth({
       keyFile: 'upwork-tool-487609-8d2afa1af073.json',
-      scopes: ['https://www.googleapis.com/auth/documents'],
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const docs = google.docs({ version: 'v1', auth });
-    
-    await docs.documents.batchUpdate({
-      documentId: this.docId,
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const timestamp = new Date().toISOString();
+    const rows: Array<[string, string]> = [
+      ['timestamp', timestamp],
+      ['job_link', jobLink],
+      ...Object.entries(analysis).map(([key, value]): [string, string] => [
+        key,
+        typeof value === 'string' ? value : JSON.stringify(value),
+      ]),
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: this.sheetId,
+      range: this.sheetRange,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        requests: [
-          {
-            insertText: {
-              location: { index: 1 },
-              text: `\n\n--- NEW ANALYSIS ---\nJob Link: ${jobLink}\n${analysis}\n`,
-            },
-          },
-        ],
+        values: rows,
       },
     });
   }

@@ -33,7 +33,7 @@ export class JobsController {
             continue;
           }
 
-          await this.jobsService.appendToGoogleDoc(job.link, JSON.stringify(analysis, null, 2));
+          await this.jobsService.appendToGoogleSheet(job.link, analysis);
           results.push({ title: job.title, status: 'Success' });
         }
 
