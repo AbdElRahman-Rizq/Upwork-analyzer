@@ -1,98 +1,60 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Upwork Analyzer
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+AI-assisted pipeline for triaging Upwork jobs. The NestJS backend ingests raw job posts, batches them into Gemini API calls, filters for "easy / short" gigs, and logs accepted opportunities to a Google Sheet. A companion Chrome extension scrapes jobs directly from upwork.com and forwards them to the backend for analysis.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+https://github.com/user-attachments/assets/
 
-## Description
+## Features
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Gemini analysis with batching** – jobs are processed 10 at a time with automatic retry/backoff for HTTP 429 responses.
+- **Structured feasibility scoring** – Gemini returns JSON containing `doable`, `complexity`, `estimated_days`, `why`, and a four-step roadmap.
+- **Auto-filtering** – only jobs that are marked doable, with complexity ≤ 4 and ETA ≤ 14 days, are appended to your Google Sheet.
+- **Google Sheets logging** – accepted jobs are appended as new rows with timestamp, job link, and raw Gemini decision for future reference.
+- **Chrome extension scraper** – Manifest v3 extension gathers job title/description/link data directly from Upwork job lists and POSTs the payload to the backend.
 
-## Project setup
+## Tech Stack
 
-```bash
-$ npm install
+- NestJS + TypeScript API (`src/*.ts`).
+- Google Generative AI SDK for Gemini (`JobsService`).
+- Google Docs API using a service-account key.
+- Chrome extension (manifest, popup, content script) under `upwork-ext/`.
+
+## Prerequisites
+
+- Node.js 18+
+- npm 10+
+- Google Cloud service account with Sheets API enabled and JSON key (referenced in `JobsService.appendToGoogleSheet`).
+- Google Gemini API key with access to `gemini-3-flash-preview` (or any model configured in `GEMINI_MODEL`).
+
+## Configuration
+
+Create a `.env` file in the project root:
+
+```env
+GEMINI_KEY=your_gemini_api_key
+GOOGLE_SHEET_ID=your_target_sheet_id
+GOOGLE_SHEET_RANGE=Sheet1!A:C         # optional, defaults to Sheet1!A:C
+GEMINI_MODEL=gemini-3-flash-preview   # optional, defaults to gemini-1.5-flash
+PORT=3001                             # optional
 ```
 
-## Compile and run the project
+> Share the target Google Sheet with the service account email so it can insert rows. If you rename the key file, also update the path inside `appendToGoogleSheet` (`src/jobs.service.ts`).
+
+## Installation & Local Run
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run start:dev
 ```
 
-## Run tests
+The Nest app boots on `http://localhost:3001` with CORS enabled (`src/main.ts`).
 
-```bash
-# unit tests
-$ npm run test
+## API
 
-# e2e tests
-$ npm run test:e2e
+`POST /jobs/process`
 
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```jsonc
+[
+  {
+    "title": "Need NestJS dev",
+    "description": "...",
